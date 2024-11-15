@@ -1,17 +1,18 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
-    import { connectToSocketIO } from "$lib/ws/ws-client";
+    import { messages } from "$lib/stores/websocket";
 
-    let messages: string[] = [];
+    let data: { topic: string, payload: string }[] = [];
 
-    onMount(() => {
-        const socket =connectToSocketIO((message) => {
-            messages = [message, ...messages];
-        });
-
-        onDestroy(() => socket.disconnect());
-    });
+    $: data = $messages;
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<main>
+    <h1>MQTT Messages</h1>
+    <ul>
+        {#each data as { topic, payload }}
+        <li>
+            <strong>{topic}:</strong> {payload}
+        </li>
+        {/each}
+    </ul>
+</main>

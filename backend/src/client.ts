@@ -1,7 +1,6 @@
 import { iot, mqtt5 } from 'aws-iot-device-sdk-v2';
 import { ICrtError } from 'aws-iot-device-sdk-v2';
 import { toUtf8 } from '@aws-sdk/util-utf8-browser';
-import { once } from "events";
 
 // Function to configure the MQTT5 client settings
 function createClientConfig(endpoint: string, certPath: string, keyPath: string) : mqtt5.Mqtt5ClientConfig {
@@ -15,23 +14,25 @@ function createClientConfig(endpoint: string, certPath: string, keyPath: string)
     return builder.build();
 }
 
-// Function to create the MQTT5 client
-function createClient(endpoint: string, certPath: string, keyPath: string) : mqtt5.Mqtt5Client {
+// Function to start the MQTT5 client
+export const startClient = async (endpoint: string, certPath: string, keyPath: string, topicName: string, onMessage: (topic: string, payload: string) => void): Promise<void> => {
     let config : mqtt5.Mqtt5ClientConfig = createClientConfig(endpoint, certPath, keyPath);
-
+    
     console.log("Creating client for " + config.hostName);
     let client : mqtt5.Mqtt5Client = new mqtt5.Mqtt5Client(config);
 
-    client.on('error', (error: ICrtError) => {
-        console.log("Error event: " + error.toString());
-    });
-
+    // Handle client lifecycle events
     client.on('messageReceived', (eventData: mqtt5.MessageReceivedEvent) : void => {
         console.log("Message received: " + JSON.stringify(eventData.message));
         if (eventData.message.payload) {
-            const utf8Payload = toUtf8(new Uint8Array(eventData.message.payload as ArrayBuffer));
-            console.log(" with payload: " + utf8Payload);
+            const messageTopic = eventData.message.topicName || '';
+            const messagePayload = toUtf8(new Uint8Array(eventData.message.payload as ArrayBuffer));
+            onMessage(messageTopic, messagePayload);
         }
+    });
+    
+    client.on('error', (error: ICrtError) => {
+        console.log("Error event: " + error.toString());
     });
 
     client.on('attemptingConnect', (eventData: mqtt5.AttemptingConnectEvent) => {
@@ -54,21 +55,16 @@ function createClient(endpoint: string, certPath: string, keyPath: string) : mqt
         console.log("Client stopped.");
     });
 
-    return client;
-}
+    // Start the client and subscribe to the topic
+    try {
+        await client.start();
 
-export default async function connectAndSubscribe(endpoint: string, certPath: string, keyPath: string, topicName: string) {
-    let client : mqtt5.Mqtt5Client = createClient(endpoint, certPath, keyPath);
-
-    const connectionSuccess = once(client, "connectionSuccess");
-    
-    client.start();
-
-    await connectionSuccess;
-
-    const suback = await client.subscribe({
-        subscriptions: [
-            { qos: mqtt5.QoS.AtMostOnce, topicFilter: topicName }
-        ]
-    });
+        await client.subscribe({
+            subscriptions: [
+                { qos: mqtt5.QoS.AtMostOnce, topicFilter: topicName }
+            ]
+        });
+    } catch (error) {
+        console.log('Error starting the MQTT client:', error);
+    }
 }

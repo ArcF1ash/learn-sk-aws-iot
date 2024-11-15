@@ -1,5 +1,5 @@
-//import config from './config';
-//import connectAndSubscribe from './client';
+import config from './config';
+import { startClient } from './client';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
@@ -25,4 +25,7 @@ httpServer.listen(PORT, () => {
     console.log('Server is running on port', PORT);
 })
 
-//connectAndSubscribe(config.AWS_ENDPOINT,config.AWS_CERT_PATH,config.AWS_KEY_PATH, config.AWS_IOT_TOPIC);
+// Start the MQTT client. Forward each message through the socket
+startClient(config.AWS_ENDPOINT, config.AWS_CERT_PATH, config.AWS_KEY_PATH, config.AWS_IOT_TOPIC, (topic, payload) => {
+    io.emit('mqttMessage', { topic, payload });
+});
